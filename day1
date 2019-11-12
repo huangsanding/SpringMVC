@@ -1,28 +1,273 @@
-Web.xml 文件配置   
+# SpringMVC   (上集)
 
-<filter>
-  	<filter-name>encoding</filter-name>
-  	<filter-class>org.springframework.web.filter.CharacterEncodingFilter</filter-class>
-  	<init-param>
-  		<param-name>encoding</param-name>
-  		<param-value>UTF-8</param-value>
-  	</init-param>
-  </filter>
-  <filter-mapping>
-  	<filter-name>encoding</filter-name>
-  	<url-pattern>/*</url-pattern>
-  </filter-mapping>
+>  作用
 
-   <servlet>
-  	<servlet-name>springmvc</servlet-name>
-  	<servlet-class>org.springframework.web.servlet.DispatcherServlet</servlet-class>
-  	<!-- 不使用 默认找 /WEB-INF/[servlet的名称(springmvc)]-servlet.xml -->
-  	<init-param>
-  		<param-name>contextConfigLocation</param-name>
-  		<param-value>classpath:springmvc.xml</param-value>
-  	</init-param>
-  </servlet>
-  <servlet-mapping>
-  	<servlet-name>springmvc</servlet-name>
-  	<url-pattern>/</url-pattern>
-  </servlet-mapping>
+1. springmvc解决了controller层的设计，使得c层更高效
+2. springmvc使用了一些注解用来解决请求到达时候的动作，例如：接收参数、映射url   
+
+>  运行流程
+
+1. 核心控制器DispatcherServlet
+
+2. 核心控制器分发给不同的处理器、适配器进行对应的处理
+
+3. 请求到达匹配对应的地址找到对应的方法进行处理
+
+   
+
+   - 一个url请求匹配核心控制器的请求映射路径， WEB容器将该请求转交给 核心控制器，核心控制器接收到请求后，根据请求信息 调用处理器映射器HandlerMapping
+   - 处理器映射器根据用户的请求url，查找匹配url的handle处理器，并返回一个执行链（执行动作）
+   - 核心控制器 请求处理器适配器HandlerAdapter 调用相应的handle处理器，并返回ModelAndView给核心控制器
+   - 核心控制器 将ModelAndView 请求 视图解析器ViewReslover 解析，返回一个具体的View
+   - 核心控制器 将View进行渲染 （将模型数据填充到视图中）
+   - 展现、响应给用户
+
+
+
+>  相关配置
+
+1. web.xml
+
+   ```
+   <filter>
+     	<filter-name>encoding</filter-name>
+     	<filter-class>org.springframework.web.filter.CharacterEncodingFilter</filter-class>
+     	<init-param>
+     		<param-name>encoding</param-name>
+     		<param-value>UTF-8</param-value>
+     	</init-param>
+     </filter>
+     <filter-mapping>
+     	<filter-name>encoding</filter-name>
+     	<url-pattern>/*</url-pattern>
+     </filter-mapping>
+     
+     
+     <servlet>
+     	<servlet-name>springmvc</servlet-name>
+     	<servlet-class>org.springframework.web.servlet.DispatcherServlet</servlet-class>
+     		<!-- 不使用 默认找 /WEB-INF/[servlet的名称(springmvc)]-servlet.xml -->
+     	<init-param>
+     		<param-name>contextConfigLocation</param-name>
+     		<param-value>classpath:springmvc.xml</param-value>
+     	</init-param>
+     </servlet>
+       <servlet-mapping>
+     	<servlet-name>springmvc</servlet-name>
+     	<url-pattern>/</url-pattern>
+     </servlet-mapping>
+   ```
+
+2. springmvc.xml
+
+   ```
+   <beans xmlns="http://www.springframework.org/schema/beans"
+   	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" 
+   	xmlns:p="http://www.springframework.org/schema/p"
+   	xmlns:context="http://www.springframework.org/schema/context"
+   	xmlns:mvc="http://www.springframework.org/schema/mvc"
+   	xsi:schemaLocation="http://www.springframework.org/schema/beans 
+   	                   http://www.springframework.org/schema/beans/spring-beans-4.1.xsd
+                          http://www.springframework.org/schema/mvc 
+                          http://www.springframework.org/schema/mvc/spring-mvc-4.1.xsd
+                          http://www.springframework.org/schema/context 
+                          http://www.springframework.org/schema/context/spring-context-4.1.xsd">
+   <!-- 扫描包以其子包下所有类的注解 @Controler @Service等 -->
+   <context:component-scan base-package="com.ht.*.controller"/>
+   
+   <!-- 注解驱动 -->
+   <mvc:annotation-driven conversion-service="converService"/>
+   
+   <!-- 自定义转换器 -->
+   <bean id="converService" class="org.springframework.context.support.ConversionServiceFactoryBean">
+   	<property name="converters">
+   		<bean class="com.ht.conver.StringToDate"/>
+   	</property>
+   </bean>
+   
+   <!-- 视图解释器 使用前后缀拼接跳转页面路径  在数据的回复上面是以同步机制为基准-->
+   <bean class="org.springframework.web.servlet.view.InternalResourceViewResolver">
+   	<property name="prefix" value="/WEB-INF/"/>
+   	<property name="suffix" value=".jsp"/>
+   </bean>
+   
+   </beans>
+   ```
+
+> 参数相关注解、类
+
+1. @requestMapping    映射url
+
+2. @requestParam    接收参数
+
+3. model    传输数据
+
+4. modelandview    传输数据
+
+   >  其它注解
+
+   1. @PathVariable      用来接收restful 
+
+      ```
+      // 接受restful 设计形式 针对请求以及数据的返回都有设计的标准
+      	@RequestMapping("a4/{p1}/{p2}")
+      	public void a4(@PathVariable(value = "p1") String p1, @PathVariable(value = "p2") String p2) {
+      		System.out.println(p1 + " " + p2);
+      	}
+      ```
+
+      
+
+
+
+>  类型转换动作
+
+1. 使用注解对日期类型进行转换 @DateTimeFormat
+
+   ```
+    @DateTimeFormat(pattern = "yyyy-MM-dd")
+    private Date bir;
+   ```
+
+   
+
+2. 实现converter接口进行自定义类型转换器处理数据
+
+   ```
+   public class StringToDate implements Converter<String, Date> {
+   
+   	@Override
+   	public Date convert(String arg0) {
+   		// TODO Auto-generated method stub
+   		try {
+   			SimpleDateFormat format = new SimpleDateFormat("yyyy-MM-dd");
+   			Date date = format.parse(arg0);
+   			return date;
+   		} catch (ParseException e) {
+   			// TODO Auto-generated catch block
+   			e.printStackTrace();
+   		}
+   		return null;
+   	}
+   
+   }
+   
+   
+   <!-- 注解驱动 -->
+   <mvc:annotation-driven conversion-service="conversionService"/>
+         <bean id="conversionService" class="org.springframework.context.support.ConversionServiceFactoryBean">
+             <property name="converters">
+                 <set>
+                     <bean class="com.wwj.convert.StringToDate"></bean>
+                 </set>
+             </property>
+         </bean>
+   ```
+
+   
+
+>  返回值处理
+
+1. 有请求必然有回复，同步异步不能嵌套
+
+2. 如果定义返回类型为String，请求动作一定是同步
+
+   ```
+   @RequestMapping("a8")
+   	public String a8(HttpSession session, Model model, @ModelAttribute(value = "name") String nString) {
+   		model.addAttribute("a1", "abcd");
+   		session.setAttribute("a2", nString);
+   		return "x";
+   	}
+   ```
+
+   
+
+3. 如果使用@responseBody，请求动作一定是异步
+
+4. 异步ajax：可以使用@responseBody；也可以采用void返回类型，使用HttpServletResponse resp
+
+   ```
+   	异步两种方法：
+   	@RequestMapping("a9")
+   	@ResponseBody
+   	public Map<String, String> a9() {
+   		Map<String, String> map = new HashMap<String, String>();
+   		map.put("name", "sanding");
+   		return map;
+   	}
+   
+   	@RequestMapping("a10")
+   	public void a10(HttpServletResponse resp) throws IOException {
+   		JsonObject j = new JsonObject();
+   		j.addProperty("name", "sanding");
+   
+   		PrintWriter pw = resp.getWriter();
+   		pw.write(j.toString());
+   	}
+   ```
+
+   
+
+>  跳转
+
+1. 使用void返回类型，采用原生ServletAPI中进行请求转发和重定向
+
+   ```
+   @RequestMapping("a7")
+   	public void a7(HttpSession session, HttpServletResponse response) throws IOException {
+   		response.sendRedirect("index.jsp");
+   	}
+   ```
+
+   
+
+2. 当使用forward 和 redirect不会直接调用视图解析器解析到对应资源页面上,不常用
+
+   return “redirect：资源路径”；
+
+   return “forward：资源路径”；
+
+3. 重定向传值（借助RedirectAttributes 属性）， 然后新的请求接收值的时候 一定使用@ModelAttribute String pname；addFlashAttribute（参数不会暴露）
+
+   ```
+   @RequestMapping("a11")
+   public String a11(RedirectAttributes a) {
+   	 // 暴露参数
+   	 a.addAttribute("name", "sanding");
+   	// 不暴露参数
+   	a.addFlashAttribute("name", "sanding"); 
+   	return "redirect:a8";	
+   }
+   
+   
+   <!-- 接收 -->
+   @RequestMapping("a8")
+   public String a8(HttpSession session, Model model, @ModelAttribute(value = "name") String nString) {
+   		model.addAttribute("a1", "abcd");
+   		session.setAttribute("a2", nString);
+   		return "x";
+   	}
+   
+   ```
+
+
+
+>  相关配置文件解析
+
+* web.xml 中添加init-param 调整配置文件位置加载在src目录下
+
+* url-pattern常用规则
+
+  1. 使用url-pattern配置为 / 拦截所有请求
+  2. 使用(*.action或者*.do) 也就是加一个动作标签 
+  3. 如果使用 /* 而我们访问的是一个/xxx.html 或者是 /xxx.jsp 的静态资源。那么拦截了之后，返回对应的设置的value=”/WEB-INF/jsp/“ 是无法找到的。 
+
+  ***
+
+   / 并不是真正意义上的拦截所有请求，它不会拦截jsp的页面请求，其他的请求则会拦截
+  /*才是真正意义上的拦截所有请求 
+
+  *****
+
+  
