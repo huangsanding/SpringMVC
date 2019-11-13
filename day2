@@ -1,0 +1,422 @@
+#    SpringMVC（下集）
+
+1. 一些常见的注解
+2. 对静态资源的处理
+3. 单文件、多文件的上传和下载
+4. 统一异常处理
+5. 拦截器和校验（了解知道就好）
+
+## 常见注解
+
+1. @CookValue    获取页面设置cookie值
+
+   ```
+   前端页面
+   <head>
+       <script type="text/javascript">
+       //(path)必须要填写，因为JS的默认路径是当前页，如果不填，此cookie只在当前页面生效！~
+           document.cookie="name=wwj;path=/"  
+           document.cookie="age=32;path=/"     
+       </script>
+   </head>
+   
+   后台
+   @RequestMapping("testcookie")
+   	public void a1(@CookieValue(value = "name") String sname, @CookieValue(value = "age") int sage) {
+   		System.out.println(sname + sage);
+   	}
+   ```
+
+   
+
+2. @SessionAttributes   将数据放在Session作用域中
+
+   **@SessionAttributes只能用在类上**
+
+   **常用的设置@SessionAttributes(value={“user1”, “user2”}) 会将model中属性名为user1和user2的属性添加到会话中** 
+
+   ```
+   @SessionAttributes(value = { "name", "age" })
+   
+   @RequestMapping("testsessionattributes")
+   	public String a2(Model m) {
+   		m.addAttribute("name", "123");
+   		m.addAttribute("age", "19");
+   		return "x";
+   	}
+   ```
+
+   
+
+3. @ModelAttribute    初始化数据，直接接受restful格式的数据并封装
+
+   **数据被封装到modelattr中，同时也是在model中的** （只适用于初始化数据中）
+
+   ```
+   初始化数据   // @ModelAttribute("xp") 等价于 m.addAttribute("xp", p);
+   @ModelAttribute("xp")
+   	public Person a3() {
+   		Person p = new Person();
+   		p.setName("sanding");
+   		p.setAge(22);
+   		return p;
+   	}
+   	
+   	@RequestMapping("a4")
+   	public String a4(Model m) {
+   		System.out.println(m.containsAttribute("xp"));
+   		return "x";
+   	}
+   
+   
+   接受restful格式的数据并封装
+   	@RequestMapping("a5/{name}/{age}")
+   	public String a5(@ModelAttribute Person p, Model m) {
+   		System.out.println(p.getName() + p.getAge());
+   		return "x";
+   	}
+   ```
+
+
+
+## 对静态资源的处理(掌握)
+
+ **静态资源在加载的时候,被拦截了。这个时候需要我们在springmvc中标注哪些为静态资源，不受springmvc进行拦截 **
+
+1. 使用  <mvc:resources location="/js/" mapping="/js/**"/> 
+
+   **location代表着webcontext容器下路径。映射所有js下面的资源为静态资源**
+
+2. 使用   < mvc:default-servlet-handler /> 
+
+
+
+##  上传与下载
+
+   1.上传
+
+>  流程
+
+​	1）如果是同步,需要设置enctype
+
+​	2）如果是异步,1.获取formData,2.ajax中设置processData:false,contentType:false
+
+​	3）构造上传文件存放的目录地址
+
+​	4）上传提供一个接收文件的对象MultipartFile，调用transferTo(File file)方法去上传
+
+
+
+​	需要引入   **Commons-fileupload.jar和commons-io.jar 2个包属于依赖关系翻译过来就是通用的上传与通用的读写操作** 
+
+​	设置对应上传数据要求 在sprinmvc.xml文件中配置
+
+​	
+
+```
+<bean id="multipartResolver" class="org.springframework.web.multipart.commons.CommonsMultipartResolver">
+	<!-- 设置请求编码格式，必须与JSP中的pageEncoding属性一致 -->
+	<property name="defaultEncoding" value="UTF-8" />
+	<!-- 设置允许上传文件的最大值（2MB），单位为字节 -->
+	<property name="maxUploadSize" value="2097152" />
+</bean>
+```
+
+​	
+
+​	multipartfile 类相关的方法
+
+```
+	byte[] getBytes()					以字节数组形式返回文件内容
+	String getContentType()				返回文件的内容类型
+	InputStream getInputStream()		读取文件内容，返回一个inputstream流
+	String getName()					获取多部件form表单参数名称
+	String getOriginalFilename()		获取上传文件的初始化名
+	long getSize()						获取上传文件的大小，单位为字节
+	boolean isEmpty()					判断上传文件是否为空
+	void transferTo(File file)			将上传文件保存到目标目录下
+```
+
+
+
+**UUID 是 通用唯一识别码（Universally Unique Identifier），是一种软件建构的标准** 
+
+
+
+2. 文件上传  同步方式实现
+
+   **form表单 需要设置enctype(编码格式) 为 multipart/form-data  不仅包含文本数据,还包含文件数据 **
+
+   ```
+   前端
+   <!-- 多文件上传 -->
+   	<form action="uploadUrl" method="post" enctype="multipart/form-data">
+   		<input type="file" name="filename" /> 
+   		<input type="file" name="filename" /> 
+   		<input type="submit" value="同步文件上传" />
+   	</form>
+   
+   
+   后台
+   @RequestMapping("uploadUrl")
+   	public void a6(@RequestParam("filename") MultipartFile[] files, HttpServletRequest req) throws IllegalStateException, IOException {
+   		String basePath = req.getServletContext().getRealPath("/upload/");
+   		File file = new File(basePath);
+   		if (!file.exists()) {
+   			file.mkdirs();
+   		}
+   
+   		for (MultipartFile multipartFile : files) {
+   			String fileName = multipartFile.getOriginalFilename();
+   			multipartFile.transferTo(new File(basePath + fileName));
+   		}
+   	}
+   ```
+
+   
+
+3. 文件上传  异步方式实现，ajax
+
+   **必须要FormData 来获取form表单中的数据（FormData就是把form表单中所有元素的name和value组装成一个queryString，我理解是组装成键值对的形式）；；ajax属性中必要属性 processData：false，contentType：fasle**
+
+   ```
+   前端
+   <!-- 多文件上传 -->
+   	<form id="tf">
+   		<input type="file" name="filename1" /> 
+   		<input type="file" name="filename1" /> 
+   	</form>
+   	<button>异步文件上传</button>
+   	
+   	<script type="text/javascript">
+   		$(function() {
+   			$("button").click(function() {
+   				var form = new FormData(document.getElementById("tf"));
+   				
+   				$.ajax({
+   					url:"uploadUrl1",
+   					type:"post",
+   					data:form,
+   					dataType:"json",
+   					processData:false,
+   				    contentType:false,
+   				    success:function(resp){
+   				    	if(resp.msg==1){
+   				    		console.log("异步上传成功");
+   				    	}
+   				    }
+   				})
+   			})
+   		})
+   	</script>
+   	
+   后台
+   	@RequestMapping("uploadUrl1")
+   	@ResponseBody
+   	public Map<String, Integer> a7(@RequestParam("filename1") MultipartFile[] files, HttpServletRequest req)
+   			throws IllegalStateException, IOException {
+   		String basePath = req.getServletContext().getRealPath("/upload/");
+   		File file = new File(basePath);
+   		if (!file.exists()) {
+   			file.mkdirs();
+   		}
+   
+   		for (MultipartFile multipartFile : files) {
+   			String fileName = multipartFile.getOriginalFilename();
+   			multipartFile.transferTo(new File(basePath + fileName));
+   		}
+   
+   		Map<String, Integer> map = new HashMap<String, Integer>();
+   		map.put("msg", 1);
+   		return map;
+   	}
+   ```
+
+   
+
+4. 下载    **下载只能是同步实现的**
+
+   >  流程
+
+   1）提供一个对象ResponseEntity<byte[]> 来处理需要下载的file
+
+   2）提供下载文件的地址，地址拼接
+
+   3）设置响应头。附件的名称和传输格式
+
+   4）使用commons中FileUtils类的readFileToByteArray(file)方法对 file 进行字节上面的转换填充到ResponeEntity<byte[]>
+
+​	避免文件名乱码
+
+```
+// 避免文件名乱码
+String filenameString = new String(yaSuoFileName.getBytes("utf8"), "iso-8859-1");
+```
+
+
+
+5. 单文件下载     
+
+```
+@RequestMapping("downloadone")
+	public ResponseEntity<byte[]> a8(HttpServletRequest req) throws IOException {
+		// 提供下载文件地址
+		String fileName = "新建文本文档.txt";
+		String basePath = req.getServletContext().getRealPath("/upload/");
+		File file = new File(basePath + fileName);
+
+		// 设置响应头，标注附件的名字和格式
+		HttpHeaders headers = new HttpHeaders();
+		// 避免文件名乱码
+		String filenameString = new String(fileName.getBytes("utf8"), "iso-8859-1");
+		// attachment 附件
+		headers.setContentDispositionFormData("attachment", filenameString);
+		headers.setContentType(MediaType.APPLICATION_OCTET_STREAM);
+
+		return new ResponseEntity<byte[]>(FileUtils.readFileToByteArray(file), headers, HttpStatus.CREATED);
+	}
+
+```
+
+
+
+6. 多文件下载     **需要进行压缩**
+
+ZipOutputStream 流的操作
+
+先将要下载的文件打包（压缩） zipOut.putNextEntry();    new ZipEntry(string);
+
+```
+@RequestMapping("downloadmore")
+	public ResponseEntity<byte[]> a9(HttpServletRequest req) throws IOException {
+		// 提供下载文件地址
+		String fileName = "新建文本文档.txt";
+		List<String> list = new ArrayList<String>();
+		list.add(fileName);
+		list.add("20191113.md");
+
+		// 压缩后文件名、路径
+		String yaSuoFileName = "sanding.zip";
+		String basePath = req.getServletContext().getRealPath("/upload/");
+		ZipOutputStream zipOut = new ZipOutputStream(new FileOutputStream(new File(basePath + yaSuoFileName)));
+
+		InputStream is = null;
+		for (String string : list) {
+			File file = new File(basePath + string);
+			is = new FileInputStream(file);
+
+			zipOut.putNextEntry(new ZipEntry(string));
+			int len = -1;
+			while ((len = is.read()) != -1) {
+				zipOut.write(len);
+			}
+			is.close();
+		}
+		zipOut.close();
+
+		File file1 = new File(basePath + yaSuoFileName);
+		// 设置响应头，标注附件的名字和格式
+		HttpHeaders headers = new HttpHeaders();
+		// 避免文件名乱码
+		String filenameString = new String(yaSuoFileName.getBytes("utf8"), "iso-8859-1");
+		headers.setContentDispositionFormData("attachment", filenameString);
+		headers.setContentType(MediaType.APPLICATION_OCTET_STREAM);
+
+		return new ResponseEntity<byte[]>(FileUtils.readFileToByteArray(file1), headers, HttpStatus.CREATED);
+
+	}
+
+
+```
+
+
+
+##  统一异常处理(重要掌握)
+
+1. 先加一个扫描器 <context:component-scan base-package="com.ht.*.exceptionhandler"/>
+
+2. 先自定义异常
+
+   ```
+   public class MyException extends RuntimeException {
+   
+   	public MyException(String message) {
+   		super(message);
+   		// TODO Auto-generated constructor stub
+   	}
+   
+   }
+   
+   
+   ```
+
+   
+
+3. 定义全局异常处理类 （需要用到@ControllerAdvice以及@ExceptionHandler(ServiceException.class)） 
+
+   ```
+   @ControllerAdvice
+   public class MyExceptionHandler {
+   
+   	@ExceptionHandler(MyException.class)
+   	@ResponseBody
+   	public Map msgResult(MyException e) { // 这里可以进行日志上信息纪录
+   		System.out.println(e);
+   
+   		// 反馈的信息
+   		Map map = new HashMap<>();
+   		map.put("status", "203");
+   		map.put("errormsg", "请联系相关人员解决问题");
+   		return map;
+   	}
+   
+   }
+   
+   
+   ```
+
+   
+
+4. controller业务处理
+
+   ```
+   	/**
+   	 * 测试返回异常信息
+   	 */
+   	@RequestMapping("exception")
+   	public void a10() {
+   		if (1 != 2) {
+   			throw new MyException("用户错误操作");
+   		}
+   	}
+   
+   ```
+
+   
+
+##  拦截器（掌握）
+
+**拦截器是对过滤器操作的一种升华。拦截器本身的机制也是aop进行实现** 
+
+1. 自定义一个拦截器类去实现 HandlerInterceptor 接口
+
+2. 配置文件
+
+   ```
+   <mvc:interceptors>
+   	<mvc:interceptor>
+   	  <!-- 拦截所有的请求，这个必须写在前面，也就是写在【不拦截】的上面 -->
+   		<mvc:mapping path="/**"/>
+   		 <!-- 但是排除下面这些，也就是不拦截请求 -->
+   		<mvc:exclude-mapping path="/x.jsp"/>
+   		<bean class="com.ht.interceptor.MyInterceptor"/>
+   	</mvc:interceptor>
+   </mvc:interceptors>
+   
+   ```
+
+3. 执行顺序
+
+   1. preHandle               在业务处理器处理请求之前被调用(如果preHandle返回false)          请求调用前执行
+   2. postHandle             在业务处理器处理请求执行完成后,生成视图之前执行                       请求运行时执行
+   3. afterCompletion     完全处理完请求后被调用,可用于清理资源等                                      请求完毕后执行
