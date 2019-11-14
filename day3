@@ -1,0 +1,316 @@
+#  Hibernate
+
+1.  全自动对象映射，hibernate有的东西,mybatis也有. **hibernate 更关心的是类的设计**
+
+2. 目的：什么是ORM 对象关系映射；使用角度来说面向对象的；注解比xml更方便
+
+   
+
+
+
+#  事务（重要理解）
+
+**把事务理解成交易，交易只存在交易成功和交易失败两种情况**
+
+事务就是应用程序中的一系列操作，所有的操作要么全部完成，要么一个操作都不做（其实也不是所有操作都不做，只不过是执行过的操作中所更改内容都会撤销，会被回滚rollback到事务开始前的状态）。
+
+***
+
+###  事务的ACID  
+
+1. 原子性（Atomicity）            交易制定的规则，要么买，要么不买
+2. 一致性（Consistency）        数据的一致，交易时你卖多少我买多少，交易数据是平等的
+3. 隔离性（Isolation）              不允许外界因素来影响数据的变化
+4. 持久性（Durability）            交易是有记录去查找的，数据长久保存
+
+
+
+###  事务并发
+
+多个线程访问数据库中同一条数据
+
+>  脏读         **一个事务读取到另一个事务未完成提交中的数据**
+
+![image-20191114160842884](C:\Users\Administrator\AppData\Roaming\Typora\typora-user-images\image-20191114160842884.png)
+
+>  不可重复读        **一个事务读到了另一个事务已提交的数据，发生在一行上（一个对象上面）**
+
+![image-20191114161311800](C:\Users\Administrator\AppData\Roaming\Typora\typora-user-images\image-20191114161311800.png)
+
+>  幻读           **一个事务读到了另一个事务已提交的数据，发生在整张表上（整个总量上面）**
+
+![image-20191114161516753](C:\Users\Administrator\AppData\Roaming\Typora\typora-user-images\image-20191114161516753.png)
+
+> **补充：InnoDB引擎数据库上才存在 行级锁机制和表级锁机制**
+
+> 数据库提供的隔离级别（由低到高）
+
+1. ISOLATION_READ_UNCOMMITTED：这是事务最低的隔离级别，它充许令外一个事务可以看到这个事务未提交的数据。这种隔离级别会产生脏读，不可重复读和幻像读。
+2. ISOLATION_READ_COMMITTED：保证一个事务修改的数据提交后才能被另外一个事务读取。另外一个事务不能读取该事务未提交的数据
+3. ISOLATION_REPEATABLE_READ：这种事务隔离级别可以防止脏读，不可重复读。但是可能出现幻像读。它除了保证一个事务不能读取另一个事务未提交的数据外，还保证了避免下面的情况产生(不可重复读)。
+4. ISOLATION_SERIALIZABLE：这是花费最高代价但是最可靠的事务隔离级别。事务被处理为顺序执行。除了防止脏读，不可重复读外，还避免了幻像读。
+
+
+
+>  **重点说明(操作数据都是先查找再操作数据)**
+
+**重中之重**
+
+1. **悲观锁机制**     所有事务都是同步执行，一个一个来执行，查询语句后加上**for update**
+
+    必须关闭mysql数据库的自动提交属性，因为MySQL默认使用autocommit模式 
+
+2. **乐观锁机制**      版本号控制及时间戳控制，使用**版本号**的机制
+
+   1）所有人先查看到版本号为1（初始默认值）
+
+   2）增加删除修改的操作提交都会在版本号上加1，判断谁执行的条件是当前版本号和之前的是否一致，提交存在先来后到，最先提交的就会去执行相应操作，后面的因为版本号不一致不会执行
+
+   3）后面的操作因为版本号不一致会发生异常，通过捕获异常来进行下一步的处理
+
+
+
+​	版本号控制的原理：
+
+- 为表中加一个 version 字段；
+- 当读取数据时，连同这个 version 字段一起读出；
+- 数据每更新一次就将此值加一；
+- 当提交更新时，判断数据库表中对应记录的当前版本号是否与之前取出来的版本号一致，如果一致则可以直接更新，如果不一致则表示是过期数据需要重试或者做其它操作
+
+|          | 悲观锁                                             | 乐观锁                                 |
+| -------- | -------------------------------------------------- | -------------------------------------- |
+| 概念     | 查询时直接锁住纪录使得其它事务不能查询，更不能更新 | 提交更新时检查版本号或者时间戳是否一致 |
+| 语法     | select  ...  for update                            | 版本号version、时间戳timestamp进行比较 |
+| 实现者   | 数据库本身                                         | 开发者                                 |
+| 适用场景 | 并发量大                                           | 并发量小                               |
+| 类比java | synchronized关键字                                 | CAS算法（CompareAndSwap）比较并替换    |
+
+
+
+##  Hibernate的对应关系详解 (采用注解的方式)
+
+1. 一对一双向注解，，，双向变单向 删一边就可以了
+
+   ```
+   Teacher类
+   @Entity
+   public class Teacher {
+   	@Id
+   	@GeneratedValue
+   	private int tid;
+   	private String tname;
+   	@OneToOne
+   	@JoinColumn(name = "sid", unique = true)
+   	private Student stu;
+   	
+   	//省略get/set方法
+   }
+   
+   Student类
+   @Entity
+   public class Student {
+   	@Id
+   	@GeneratedValue
+   	private int sid;
+   	private String sname;
+   	@OneToOne(mappedBy = "stu")  // mappedBy 是把关系交给另一方维护
+   	private Teacher t;
+   	
+   	//省略get/set方法
+   }	
+   ```
+
+   
+
+2. 一对多双向注解,,,,,,,双向变单向，只需要在多的一方去掉“一“的信息，同时去掉mappedBy
+
+   ```
+   Teacher类
+   
+   @Entity
+   public class Teacher {
+   	@Id
+   	@GeneratedValue
+   	private int tid;
+   	private String tname;
+   	@OneToMany(mappedBy = "t")    // 一对多
+   	//mappedBy 把维护关系交给多的一方来维护，不能与@JoinColumn(name="")共存
+   	private List<Student> stus;
+   	
+   	//省略get/set方法
+   }
+   
+   Student类
+   
+   @Entity
+   public class Student {
+   	@Id
+   	@GeneratedValue
+   	private int sid;
+   	private String sname;
+   	@ManyToOne						// 多对一
+   	@JoinColumn(name = "teachid")   // 本表添加一列
+   	private Teacher t;
+   	
+   	//省略get/set方法
+   }
+   ```
+
+   
+
+3. 多对多双向注解
+
+   ```
+   Teacher类
+   
+   @Entity                             // 用来映射对应的类到数据库中
+   public class Teacher {
+   	@Id								// 设置成主键
+   	@GeneratedValue					// 设置成自增长
+   	private int tid;
+   	private String tname;
+   	@ManyToMany						// 多对多
+   	@JoinTable(name = "t_s", 		// 创建第三张表
+   	joinColumns = { @JoinColumn(name = "tid") },          // 表中增加Teacher表中的列
+   	inverseJoinColumns = { @JoinColumn(name = "sid") })	  // 表中增加Student表中的列
+   	private List<Student> stus;
+   	
+   	//省略get/set方法
+   }
+   
+   
+   Student类
+   
+   @Entity
+   public class Student {
+   	@Id
+   	@GeneratedValue
+   	private int sid;
+   	private String sname;
+   	@ManyToMany
+   	@JoinTable(name = "t_s", 
+   	joinColumns = { @JoinColumn(name = "sid") }, 
+   	inverseJoinColumns = { @JoinColumn(name = "tid") })
+   	private List<Teacher> teachers;
+   
+   	//省略get/set方法
+   }
+   ```
+
+   
+
+##   Hibernate 入门案例(基于XML的操作方式)  （了解）
+
+1. **只要知道记得流程**
+
+   * 1: 读取全局配置文件 
+
+    * 2: 构建 sessionFactory 
+    * 3: 创建 session(会话)
+    * 4: 开启transcation
+    * 5: 操作数据   （CRUD）
+    * 6: 提交事务 transcation
+    * 7: 关闭 session
+
+2.  加入jar包
+
+3. 编写实体类和对应映射文件
+
+   ```
+   // 实体类
+   public class Person {
+   		private  int  pid;
+   		private  String pname;
+   		private  Date   bir;
+   }
+   
+   //------------映射文件
+   <?xml version="1.0" encoding="UTF-8"?>
+   <!DOCTYPE hibernate-mapping PUBLIC
+           "-//Hibernate/Hibernate Mapping DTD 3.0//EN"
+           "http://hibernate.sourceforge.net/hibernate-mapping-3.0.dtd">    
+   <hibernate-mapping>
+        <!-- 映射哪一个实体类,以及表名 -->
+          <class name="com.wwj.model.Person" table="person">
+          		<!-- 主键的生成策略采用自增  name为对象的属性-->
+               <id name="pid" column="pid">
+                     <generator class="increment"></generator>
+               </id>
+               <property name="pname" column="pname"></property>
+               <property name="bir" column="bir"></property>
+          </class>
+   </hibernate-mapping>
+   ```
+
+4. 配置全局声明配置文件 src下
+
+```
+<!DOCTYPE hibernate-configuration PUBLIC
+"-//Hibernate/Hibernate Configuration DTD 3.0//EN"
+"http://hibernate.sourceforge.net/hibernate-configuration-
+3.0.dtd">
+<hibernate-configuration>
+	<session-factory>
+		<!-- 方言 保证控制台输出效果一致-->
+		<property name="dialect">
+			org.hibernate.dialect.MySQLDialect</property>
+			<!-- 数据库驱动jar包 -->
+			<property name="connection.driver_class">
+				com.mysql.jdbc.Driver</property>
+				<property name="connection.url">jdbc:mysql://localhost:3306/hibernate</property>
+				<property name="connection.username">root</property>
+				<property name="connection.password">root</property>
+				<!--显示sql语句是否格式化sql语句 -->
+				<property name="hibernate.show_sql">true</property>
+				<property name="hibernate.format_sql">true</property>
+				<!--执行DDL的方式,create: 每一次运行都会覆盖原表中的内容 update: 保留原表中的内容 -->
+				<property name="hibernate.hbm2ddl.auto">update</property>
+				<!-- 将我们的对象和表的映射文件加载到主配置文件中 -->
+				<mapping resource="com/wwj/model/Person_hbm.xml" />
+	</session-factory>
+</hibernate-configuration>
+```
+
+5. 构建操作，对比mybatis 执行流程动作
+
+```
+/**
+ * 
+ * @author wwj 
+ * 1: 读取全局配置文件 
+ * 2: 构建 sessionFactory 
+ * 3: 创建 session(会话)
+ * 4: 开启transcation
+ * 5: 操作数据   （CRUD）
+ * 6: 提交事务 transcation
+ * 7: 关闭 session
+ *
+ */
+public class TestHT {
+	
+	public static void main(String[] args) throws ParseException {
+		//先处理下时间
+		SimpleDateFormat sf1 = new SimpleDateFormat("yyyy-MM-dd");
+		String format = sf1.format(new Date());
+		Date parse = sf1.parse(format);
+		// 读取配置文件，实例化 默认的寻找 名字为 hibernate.cfg.xml
+		Configuration cfg = new Configuration().configure();
+		// 构建 session 工厂
+		SessionFactory sf = cfg.buildSessionFactory();
+		// 创建 session
+		Session session = sf.openSession();
+		// 操作数据 (insert delete update) 手动开启事务
+		Transaction bt = session.beginTransaction();
+		// 操作数据  (注意这里的面向对象操作)
+		Person per = new Person();
+		per.setPname("张三");
+		per.setBir(parse);
+		// CRUD操作
+		session.save(per);
+		// 提交事务
+		bt.commit();
+		session.close();
+	}
+}
+```
+
