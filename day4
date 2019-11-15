@@ -1,0 +1,228 @@
+#  MyBatis(上集)
+
+1. 半自动的OMR映射框架，**mybatis更关心的是dao层的设计**，关心sql语句的执行效率
+
+2. 常用xml配置文件来使用
+3. 分别提供的xml标签和mapper标签(xml标签可实现动态SQL语句,sql语句不侵入在代码中，也就是嵌入条件判断和循环,比较类似存储函数),mapper标签支持对象正确的解析至数据库中 
+
+
+
+##  执行原理
+
+* sqlConfigXMl配置文件(一个全局的配置文件)(可配置映射文件和连接数据源和事务等)
+
+* 通过配置文件构建出可构建操作数据会话的会话工厂,也就是我们常说的sqlSessionFactory(涉及工厂模式代码设计)
+
+* 通过sqlSessionFactory生产出相互独立的sqlsession,为什么是独立的会话，既然是独立的会话，那也有全局的会话(简单提及缓存)进行数据库层面上面的操作
+
+* sqlsession之所以能够操作,依赖一个叫Executor的执行器,通过该执行器进行数据库的CRUD操作
+
+* Executor的执行器需要操作CRUD的动作由谁而来，就是由mapperstatement对象读取mapper映射文件
+
+
+
+### 全局配置文件详解
+
+- environments环境配置,可以配置多种环境 default指定使用某种环境.
+- transactionManager事务管理器有两种取值JDBC,managed.我们选择jdbc即可
+- dataSource配置数据源,采用默认的连接池选择项POOLED
+- mappers里面填入需要进行数据操作xml标签用于执行的动作
+- 映射的数据操作文件需要和接口保持同个路径(可以把mapper当成接口的实现类)
+
+### 映射文件详解
+
+- namespace表明需要对应动作的空间即是接口所在的全路径名称
+- id与接口中的方法保持一致
+- parameterType填写自定义对象的全路径名称
+- 接收参数采用 #{objAttrName}
+
+***
+
+##  多参数接收方法（重要）
+
+1. 单个参数使用#{0} 或者 #{参数名} 都可以获得
+
+2. 索引接收（知道就行，用的少）     **索引是从0开始的**   参数传过去的格式是[0, 1, param1, param2]
+
+   ```
+   int updateStudent1(String name, int id);
+   
+   <update id="updateStudent1">
+   		update student set sname=#{0} where sid=#{1}
+   </update>
+   ```
+
+3. map接收（重点，多）       参数传过去的格式是[sname, param1, sid, param2]，需要将数据封装成map对象
+
+   ```
+   int updateStudent(Map map);
+   
+   <update id="updateStudent">
+   		update student set sname=#{sname} where sid=#{sid}
+   </update>
+   
+   Map map = new HashMap<>();
+   map.put("sname", "hello");
+   map.put("sid", 2);
+   dao.updateStudent(map);
+   ```
+
+4. 注解@Param接收（重点，多）     参数传过去的格式是[sname, param1, sid, param2]
+
+   ```
+   int updateStudent2(@Param("sname") String name, @Param("sid") int id);
+   
+   <update id="updateStudent2">
+   		update student set sname=#{sname} where sid=#{sid}
+   </update>
+   ```
+
+
+
+##  立即返回主键值（只存在插入和更新操作中）
+
+**应用场景:当我们需要在当前事务插入数据后立即获取数据的主键id，做下一步额外操作，并且不因为并发高的情况下取错值而考虑**
+
+要立即返回主键值，那么数据库表设计主键的设计成自增的
+
+```
+	<insert id="insertStudent" parameterType="com.ht.model.Student">
+		<selectKey keyProperty="sid" resultType="int" order="AFTER" >
+			select last_insert_id()
+		</selectKey>
+		insert into student(sname,age) values(#{sname},#{age})
+	</insert>
+```
+
+- keyProperty   是parameterType 对象的主键名
+- resultType      是keyProperty值得返回类型   
+- select last_insert_id()   是获取当前插入数据  **由数据库内部生成的主键id值**
+- order     什么时候执行，在SQL执行前还是执行后执行，两个取值：BEFORE和AFTER 
+
+
+
+
+
+##  sql片段
+
+**解决重复代码**
+
+**《sql  id=" "》重复代码段《/sql》去定义重复代码，使用《include  refid=" "/》来替代前面定义的重复代码，include中refid值对应前面sql中的id值**
+
+```
+<sql id="preSql">insert into student</sql>
+<sql id="midSql">values</sql>
+
+<insert id="insertStudent">
+	<include refid="preSql"/> (sname,age) <include refid="midSql"/> (#{sname},#{age})
+</insert>
+```
+
+
+
+
+
+##  自定义结果类型（重要，查询操作用到）
+
+1. ResultType （很少用，ResultMap可以替代ResultType ）
+
+   **要求查询的字段名与自定义类型的属性名保持一致，才能将查询数据结果封装**
+
+   **ResultType不适用与对象下有关联关系的自定义对象类型**
+
+   ```
+   <select id="selectStudentNames" resultType="com.ht.model.Student">
+   		select sname from student   // 查询的字段名sname
+   </select>
+   
+   						   // 上下两者要保持一致才能将结果保持在自定义对象类型中
+   public class Student {
+   	private int sid;
+   	private String sname;    // 自定义类型的属性名sname
+   	private int age;
+   }
+   ```
+
+   
+
+2. **ResultMap（开发中长期使用的，重中之重）**
+
+   >  好处
+
+   * 自定义结果集，模型下还存在自定义对象类型
+   * 可以设置多个ResultMap
+   * 可以表明对象之间关系
+   * 可以不用考虑模型当中属性一定要与字段名一致
+
+   > 单表查询：
+
+   resultMap 中属性     type ：数据要封装的对象类型     id： 对应查询语句中的resultMap值
+
+   ​		子标签  id、result将字段名和属性名一一对应，property：属性名  column：字段名
+
+   ```
+   List<StudentOv> selectStudentOvNames();
+   
+   List<StudentOv> selectStudentOvs();
+   
+   
+   
+   <resultMap type="com.ht.ov.StudentOv" id="ov">
+   	<result property="b" column="sname"/>
+   </resultMap>
+   	
+   <resultMap type="com.ht.ov.StudentOv" id="ov1">
+   	<id property="a" column="sid"/>
+   	<result property="b" column="sname"/>
+   	<result property="c" column="age"/>
+   </resultMap>
+   	
+   <select id="selectStudentOvNames" resultMap="ov">
+   	select sname from student
+   </select>
+   	
+   <select id="selectStudentOvs" resultMap="ov1">
+   	select * from student
+   </select>
+   
+   
+   public class StudentOv {
+   	private int a;
+   	private String b;
+   	private int c;
+   }
+   ```
+
+   
+
+   > 存在关联关系的查询，封装类型中包含了自定义类型（多对一）
+
+   一 用     association  属性property：对应自定义类型对象    javaType：对应property的类
+
+   多 用     collection
+
+   ```
+   List<StudentAndTeacherOv> selectStudentAndTeacherOv();
+   
+   
+   <resultMap type="com.ht.ov.StudentAndTeacherOv" id="sat">
+   		<result property="stuName" column="sname"/>
+   		<result property="stuAge" column="age"/>
+   		<association property="t" javaType="com.ht.model.Teacher">
+   			<result property="tname" column="tname"/>
+   		</association>
+   </resultMap>
+   	
+   	
+   <select id="selectStudentAndTeacherOv" resultMap="sat">
+   	select s.sname,s.age,t.tname
+   	from student_copy1 s,teacher_copy1 t
+   	where s.tid =  t.tid
+   </select>
+   ```
+
+   
+
+**注意1:po代表和数据库一一对照的数据模型.vo代表业务逻辑和表现层之间需要的数据**
+
+**注意2:如果需要暴露一部分数据出去的,可能还是会单独做接口和设计VO**
