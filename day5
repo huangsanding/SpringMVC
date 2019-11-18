@@ -1,0 +1,439 @@
+#  MyBatis（下集）
+
+1. 多表联合查询（一对多（理解延迟加载）、多对多）（熟练）
+2. 动态sql       if、where、set、choose/when、foreach （熟练）
+3. 延迟加载（定义、好处、场景） （掌握）
+4. 缓存机制（缓存机制策略、一级、二级缓存，区别和实现）（掌握）
+5. #{} 和${}有何不同、逆向工程   ( 了解 )
+
+***
+
+	##  多表联合查询
+
+```
+resultMap两种写法：
+	对于一
+	<resultMap type="com.ht.model.Interest" id="inters">
+		<result property="iname" column="iname"/>
+		<association property="user" javaType="com.ht.model.User">
+			<result property="uname" column="uname"/>
+		</association>
+	</resultMap>
+	
+	<select id="getInterest" resultMap="inters">
+		select user1.uname,interest.iname
+		from interest
+		inner join user1
+		on user1.uid = interest.uid
+	</select>
+	
+	
+	对于多
+	<resultMap type="com.ht.vo.InterestVo" id="inters2">
+		<result property="iname" column="iname"/>
+		<collection property="users" ofType="com.ht.model.User">
+			<result property="uname" column="uname"/>
+		</collection>
+	</resultMap>
+
+	<select id="getInterestById" resultMap="inters2">
+		select user1_copy1.uname,interest_copy1.iname
+		from user1_copy1
+		inner join user_interest_copy 
+		on user1_copy1.uid=user_interest_copy.uid
+		inner join interest_copy1
+		on user_interest_copy.iid = interest_copy1.iid
+		where interest_copy1.iid = #{id}
+	</select>
+--------------------------------------------------------------------------	
+
+将查询过程分隔开来
+	<resultMap type="com.ht.model.User" id="user2">
+		<result property="uname" column="uname"/>
+		<association property="interests" column="uid" select="getInterestsById2"></association>
+	</resultMap>
+	
+	<resultMap type="com.ht.model.Interest" id="inters">
+		<result property="iname" column="iname"/>
+	</resultMap>
+	
+	<select id="getUser" resultMap="user2">
+		select user1_copy1.uid,user1_copy1.uname
+		from user1_copy1
+		where user1_copy1.uid= #{uid}
+	</select>
+	
+	<select id="getInterestsById2" resultMap="inters">
+		select interest_copy1.iname
+		from interest_copy1
+		inner join user_interest_copy
+		on interest_copy1.iid= user_interest_copy.iid
+		where user_interest_copy.uid = #{uid}
+	</select>
+```
+
+
+
+
+
+##  动态sql
+
+1. if 、where  多条件查询
+
+   where   当if标签有返回值时，就插入一个‘where’；当有返回值时，where标签会判断and或or是否需要，不需要就移除
+
+   ```
+   select interest.iname
+   from interest
+   <where>
+   	<if test="iid != 0">
+   		iid= #{iid}
+   	</if>
+   	<if test="iname !=  null">
+   		and iname= #{iname}
+   	</if>
+   </where>
+   ```
+
+2. set  
+
+   set  用在update语句中，当if标签有返回值时，就插入一个‘set’；当有返回值时，set标签会判断逗号（，）是否需要，不需要就移除
+
+   ```
+   update user1
+   <set>
+   	<if test="uid != 0 ">
+   		uid = #{uid},
+   	</if>
+   	<if test="uname != null">
+   		uname = #{uname},
+   	</if>
+   </set>
+   <where>
+   	uid =8
+   </where>
+   ```
+
+3. choose/when/otherwise   
+
+   单条件查询，选择， 当第一个条件成立后，后面的条件就不做判断，直接查询出结果。
+
+   ```
+   select user1.uname
+   from user1
+   <where>
+   	<choose>
+   		<when test="uid!=0">
+   			uid= #{uid}
+   		</when>
+   		<when test="uname!=null">
+   			uname = #{uname}
+   		</when>
+   		<otherwise>
+   			1=1
+   		</otherwise>
+   	</choose>
+   </where>
+   ```
+
+4. foreach 
+
+   循环  foreach标签中 属性 用空格 分隔开，不需要使用逗号分隔，否则会报错；主要用在构建in条件上。
+
+   collection	表明集合是类型    
+
+   |          parameterType           |  collection   |
+   | :------------------------------: | :-----------: |
+   |   java.util.List    单参数List   |     list      |
+   | java.util.ArrayList   单参数数组 |     array     |
+   |   java.util.HashMap     多参数   | 自定义map变量 |
+
+   item     		每次遍历的对象名
+
+   open    		以xxx开头
+
+   close			以xxx结尾
+
+   separator    以xxx分隔
+
+   index            表示每次迭代到的位置
+
+   ```
+   <select id="findUserByIds" parameterType="java.util.List" resultMap="users">
+   	select uname
+   	from user1
+   	where uid in 
+   	<foreach collection="list" item="id" open="("  close=")"  separator=",">
+   		#{id}
+   	</foreach>
+   </select>
+   ```
+
+
+
+##  延迟加载（重要）
+
+**延迟加载 <==> 按需加载    :  需要什么数据再进行加载**
+
+hibernaet 需要配置 lazy_load
+
+**mybatis 需要xml配置文件**
+
+```
+<!-- 开启延迟加载 -->
+ 	<settings>
+ 		 <!-- 启用延迟加载特性，不配置默认关闭该特性-->
+    	<setting name="lazyLoadingEnabled" value="true"></setting>
+   	 	<!-- 按需加载: false:使用关联属性，及时加载;    true,加载对象，则加载所有属性-->
+     	<setting name="aggressiveLazyLoading" value="false"/>
+ 	</settings>
+```
+
+**查询最好分过程来写，才能达到延迟加载的效果，如果你一个查询就得到了user和interest的所有数据，这就不能够实现延迟加载。**例子如下：
+
+实例：查询所有 user用户，需要兴趣就继续查询user用户的所有兴趣
+
+```
+dao
+List<User> getUsers2();
+
+
+mapper
+<resultMap type="com.ht.model.User" id="yan">
+	<result property="uname" column="uname"/>
+	<collection property="interests" column="uid" select="getInterestsByUid"></collection>
+</resultMap>
+	
+<resultMap type="com.ht.model.Interest" id="yan1">
+	<result property="iname" column="iname"/>
+</resultMap>
+	
+<select id="getUsers2" resultMap="yan">
+	select * from user1_copy1
+</select>
+	
+<select id="getInterestsByUid" resultMap="yan1">
+	select interest_copy1.iname
+	from interest_copy1
+	inner join user_interest_copy
+	on user_interest_copy.iid = interest_copy1.iid
+	where user_interest_copy.uid = #{uid}
+</select>
+```
+
+
+
+
+
+##  缓存机制（重要）
+
+**应用场景：数据变动不频繁的情况下，能不能减少查询次数，也就是读的动作**
+
+​	缓存的存放地 可能是硬盘中（允许存放数据容量大） 也可能是内存中（读取速度快）
+
+（从读取速度、容量角度上考虑以下两个问题）
+
+1. 什么数据考虑使用缓存 ------- 数据变动不频繁，数据量不大
+
+2. 数据存放在什么地方----------- 硬盘中或者内存中
+
+   
+
+补充内容：
+
+```
+1.  mybatis 默认
+	映射文件中所有的select语句将被缓存
+	映射文件中所有的 insert、update、delete语句都会更新缓存
+	缓存会根据（Least Flush Interval LRU 最近最少使用)算法来进行回收
+	缓存不会根据时间顺序来进行刷新
+2.eviction 收回策略 === 更新策略   
+（记住前两种就可以 LRU（时间最长 最近又不怎么使用 先回收） FIFO（先进来的先回收））
+	LRU 最近最少使用的，移除最长时间不被使用的对象,这是默认值
+	FIFO 先进先出，按对象进入缓存的顺序来移除它们
+	SOFT 软引用，移除基于垃圾回收器状态和软引用规则的对象
+	WEAK 弱引用，更积极的移除基于垃圾收集器状态和弱引用规则的对象
+3. 缓存中数据可能出现脏读的现象（操作同一数据），缓存数据尽量用在数据变动不频繁的数据上面
+	影响缓存的三个因素(缓存更新策略,缓存最大数据量,命中率)
+```
+
+
+
+####  一级缓存(默认开启的,缓存不互相共享)
+
+在**一个事务中（独立会话中）**，如果存在相同的操作，**中间不存在增删改的操作**，那么不在进行二次IO读取操作，就可以获得相同的数据
+
+```
+List<User> list = ad.getUsers2();
+list.get(0).getUname();
+System.out.println(list.get(0).getInterests().size());
+// 一级缓存机制
+List<User> list1 = ad.getUsers2();
+list1.get(0).getUname();
+System.out.println(list1.get(0).getInterests().size());
+```
+
+
+
+####  二级缓存(缓存共享)------**二级缓存要将对象序列化**（重中之重）
+
+**存在多个会话中，也就是多个事务中，缓存数据共享，要实现二级缓存需要将对象序列化并且在mapper文件中加入cache标签。**
+
+**对象序列化（实现 Serializable接口，最好是配置一个唯一标识符。why？ 为了方便去找到这个对象通过这个唯一标识符）**
+
+在mapper文件中进行配置 cache，如下：
+
+```
+<mapper namespace="com.ht.dao.ActionDao">
+<cache/>
+```
+
+例子： **多次会话中实现二级缓存数据共享，但是会话都不能 将会话结束 session.close();**
+
+```
+// 二级缓存(缓存共享)
+InputStream is = Resources.getResourceAsStream("mybatisCfg.xml");
+SqlSessionFactory build = new SqlSessionFactoryBuilder().build(is);
+
+// 一次会话，也是一次事务
+SqlSession session = build.openSession();
+List<User> list = ad.getUsers2();
+System.out.println(list.get(0).getUname());
+session.commit();
+
+// 二次会话，也是二次事务
+SqlSession session1 = build.openSession();
+ActionDao ad1 = session1.getMapper(ActionDao.class);
+List<User> list2 = ad.getUsers2();
+System.out.println(list.get(0).getUname());
+session1.commit();
+
+
+// 控制台结果
+DEBUG [main] - Cache Hit Ratio [com.ht.dao.ActionDao]: 0.0
+DEBUG [main] - Opening JDBC Connection
+DEBUG [main] - Created connection 916419490.
+DEBUG [main] - Setting autocommit to false on JDBC Connection [com.mysql.jdbc.JDBC4Connection@369f73a2]
+DEBUG [main] - ==>  Preparing: select * from user1_copy1 
+DEBUG [main] - ==> Parameters: 
+DEBUG [main] - <==      Total: 3
+x
+DEBUG [main] - Cache Hit Ratio [com.ht.dao.ActionDao]: 0.5
+x
+```
+
+**注意：Cache Hit Ratio  缓存命中率   这是今后要考虑的问题**
+
+***
+
+
+
+## #{} 和 ${} 区别
+
+#{ } 采用的是占位符的方式，mybatis中会产生 PreparedStatement语句（预编译），是安全的
+
+${ } 采用的是字符串拼接的方式，字符串拼接的方式一定会存在sql注入的问题。
+
+
+
+
+
+###  逆向工程 （了解即可）--- 配置文件在官网中可以找到，如何配置
+
+1. 逆向工程我们做简单的展示   
+2. 逆向工程的含义在于根据数据库的表的结构以面向对象的方式自动的帮助我们生成对应的实体类
+3. 逆向为什么不太常用，因为一旦数据库的结构和关联发生变化，那么实际开发过程中就需要自己手动调整对应的实体类,这个可以说是一个非常浩瀚的工程,无论从人力和无力成本看来都得不偿失
+4. 以前我们可以说小的项目,用逆向比较方便,不如我们把逆向看成是不可取的，mybatis本身也是追求语句的自由化。所以逆向作为了解即可.
+
+- 引入对应的jar包
+- 构建逆向配置xml文件generatorConfig.xml位置在项目外
+
+```
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE generatorConfiguration
+  PUBLIC "-//mybatis.org//DTD MyBatis Generator Configuration 1.0//EN"
+  "http://mybatis.org/dtd/mybatis-generator-config_1_0.dtd">
+<!-- targetRuntime=“MyBatis3“可以生成带条件的增删改查，targetRuntime=“MyBatis3Simple“可以生成基本的增删改查 -->
+<generatorConfiguration>
+    <context id="testTables" targetRuntime="MyBatis3Simple">
+    
+        <commentGenerator>
+            <!-- 是否去除自动生成的注释 true：是 ： false:否 -->
+            <property name="suppressAllComments" value="true" />
+        </commentGenerator>
+        
+        <!--数据库连接的信息：驱动类、连接地址、用户名、密码 -->
+        <jdbcConnection driverClass="com.mysql.jdbc.Driver"
+            connectionURL="jdbc:mysql://localhost:3306/mybatis" userId="root"
+            password="root">
+        </jdbcConnection>
+        
+        <!-- 默认false，把JDBC DECIMAL 和 NUMERIC 类型解析为 Integer，为 true时把JDBC DECIMAL 和 
+            NUMERIC 类型解析为java.math.BigDecimal -->
+        <javaTypeResolver>
+            <property name="forceBigDecimals" value="false" />
+        </javaTypeResolver>
+        
+
+        <!-- targetProject:生成PO类的位置 -->
+        <javaModelGenerator targetPackage="com.wwj.model1"
+            targetProject="./src">
+            <!-- enableSubPackages:是否让schema作为包的后缀 -->
+            <property name="enableSubPackages" value="false" />
+            <!-- 从数据库返回的值被清理前后的空格 -->
+            <property name="trimStrings" value="true" />
+        </javaModelGenerator>
+        
+        <!-- targetProject:mapper映射文件生成的位置 -->
+        <sqlMapGenerator targetPackage="com.wwj.dao1" 
+            targetProject="./src">
+            <!-- enableSubPackages:是否让schema作为包的后缀 -->
+            <property name="enableSubPackages" value="false" />
+        </sqlMapGenerator>
+        
+        
+        <!-- targetPackage：mapper接口生成的位置 -->
+        <javaClientGenerator type="XMLMAPPER"
+            targetPackage="com.wwj.dao1" 
+            targetProject="./src">
+            <!-- enableSubPackages:是否让schema作为包的后缀 -->
+            <property name="enableSubPackages" value="false" />
+        </javaClientGenerator>
+        
+        
+        <!-- 指定数据库表 -->
+<table schema="mybatis" tableName="person" domainObjectName="personG"></table>
+
+    </context>
+</generatorConfiguration>
+```
+
+* 构建生成main函数 
+
+```
+public class TestG {
+  public void generator() throws Exception{
+
+      List<String> warnings = new ArrayList<String>();
+      boolean overwrite = true;
+      //指定 逆向工程配置文件
+      File configFile = new File("generatorConfig.xml"); 
+      ConfigurationParser cp = new ConfigurationParser(warnings);
+      Configuration config = cp.parseConfiguration(configFile);
+      DefaultShellCallback callback = new DefaultShellCallback(overwrite);
+      MyBatisGenerator myBatisGenerator = new MyBatisGenerator(config,
+              callback, warnings);
+      myBatisGenerator.generate(null);
+
+  } 
+  public static void main(String[] args) throws Exception {
+      try {
+      		TestG generatorSqlmap = new TestG();
+          generatorSqlmap.generator();
+      } catch (Exception e) {
+          e.printStackTrace();
+      }
+      
+  }
+```
+
