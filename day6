@@ -1,0 +1,229 @@
+#  Spring
+
+1. Spring 核心思想是 IOC （控制反转，也就是权力的移交）和 AOP（增强一个对象、类的功能（白话））
+
+   Spring（高度自律的管理者）管理着不同的技术产生出来的对象，like a leader
+
+2. Spring产品
+
+   spring boot（spring+springmvc） 快速构建spring项目集成   
+
+   spring  cloud（理念：微服务）（由spring boot 进阶而来）   构建分布式服务，统一管理
+
+   spring cloud data flow 连接万物，处理任何数据源
+
+
+
+##  配置文件
+
+```
+<beans  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+		xmlns="http://www.springframework.org/schema/beans" 
+		xsi:schemaLocation="http://www.springframework.org/schema/beans 
+		                    http://www.springframework.org/schema/beans/spring-beans-4.2.xsd">
+</beans>
+```
+
+
+
+***
+
+###  Spring配置文件中bean标签详解
+
+1. id、name   都代表定义的标记，查找管理对象
+2. class   管理对象的类型
+3. 在bean标签中 scope 属性有singleton（默认值，单例），prototype（多例）
+4. 对象生命周期  init-method、destroy-method分别控制一个对象的生命周期
+
+
+
+##  spring IOC（重要）
+
+**控制反转**         原来是需要什么东西自己去拿，现在是需要什么东西让别人（IOC）送过来
+
+​	1.  谁控制谁  2. 控制了什么   3.  什么是反转  4.  反转了什么
+
+ 	1. IOC容器控制对象  2. 控制对象（生命周期、关系）  3. 对象自己主动去创建被依赖的对象（正转）；所依赖的对象直接有IOC容器创建后注入到被注入的对象中，依赖对象有原来的主动变成了被动接受（反转）  4. 所依赖对象的获取方式被反转了（主动变成了被动）
+
+
+
+>  **依赖注入（IOC核心）**
+
+ 	1. 谁依赖于谁      应用程序依赖于IOC
+ 	2. 谁注入谁         注入到某个依赖的对象中
+ 	3. 注入什么         依赖对象所需要的数据
+
+**总结：spring容器是一个万能工厂，利用反射机制创建对象，并管控；目的是为了解耦（尽量减少耦合度，避免代码入侵）**
+
+>  依赖注入是实现IOC思想的一种方式，实现依赖注入的三种方式如下：
+
+>  属性注入  ---  必须要有属性的set方法
+>
+> ```
+> value 对应属性的值
+> ref  对应另一个bean的id或name,关联对应的bean
+> 
+> <bean id = "p1" class="com.ht.x.Person">
+> 	<property name="pname" value="sanding"/>
+> 	<property name="a" ref="a1"/>			
+> </bean>
+> 
+> 数组、list、map注入方式
+> <property name="arr">
+> 		<array>
+> 			<value>he</value>
+> 			<value>he</value>
+> 		</array>
+> </property>
+> 			
+> <property name="list">
+> 		<list>
+> 			<value>san</value>
+> 			<value>san</value>
+> 		</list>
+> </property>
+> 			
+> <property name="map">
+> 		<map>
+> 			<entry key="a" value="123"></entry>
+> 			<entry key="b" value="321"></entry>
+> 		</map>
+> </property>
+> 
+> ```
+>
+>  构造方法注入  ---  必须要有有参构造方法
+>
+> ```
+> name 是构造函数中的参数名，要一致
+> index 是构造函数中的参数下标
+> 
+> <bean id="p2" class="com.ht.x.Person">
+> 	<constructor-arg name="pname" value="ht1"></constructor-arg>
+> 	<constructor-arg name="a" ref="a1"></constructor-arg>
+> </bean>
+> ```
+>
+> 接口注入 ---   需要被依赖的对象实现不必要的接口，带有侵入性 （不推荐使用）
+
+
+
+
+
+
+
+##  Spring整合JDBC（含注解）
+
+> 1. 导入jar包
+>
+> 2. 配置文件    需要加入扫描包下面的注解
+>
+> ```
+> <?xml version="1.0" encoding="UTF-8"?>
+> <beans  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+> 		xmlns="http://www.springframework.org/schema/beans" 
+> 		xmlns:context="http://www.springframework.org/schema/context"
+> 		xmlns:aop="http://www.springframework.org/schema/aop" 
+> 		xmlns:tx="http://www.springframework.org/schema/tx"
+> 		xsi:schemaLocation="http://www.springframework.org/schema/beans 
+> 		                    http://www.springframework.org/schema/beans/spring-beans-4.2.xsd 
+> 							http://www.springframework.org/schema/context 
+> 							http://www.springframework.org/schema/context/spring-context-4.2.xsd 
+> 							http://www.springframework.org/schema/aop 
+> 							http://www.springframework.org/schema/aop/spring-aop-4.2.xsd 
+> 							http://www.springframework.org/schema/tx 
+> 							http://www.springframework.org/schema/tx/spring-tx-4.2.xsd ">     
+> 	 <!-- 自动根据扫描对应包下面的注解,并实例化对应的对象 -->
+> 	 <context:component-scan base-package="com.wwj.anotation"></context:component-scan>
+> 
+> 	<!-- 连接管理交给C3P0 -->
+> 	<bean name="dataSource" class="com.mchange.v2.c3p0.ComboPooledDataSource">
+> 		<property name="jdbcUrl" value="jdbc:mysql://localhost:3306/spring"></property>
+> 		<property name="driverClass" value="com.mysql.jdbc.Driver"></property>
+> 		<property name="user" value="root"></property>
+> 		<property name="password" value="root"></property>
+> 	</bean>
+> 
+> 	<!--JDBCTemplate 需要 datasource 连接池 -->
+> 	<bean name="jdbcTemplate" class="org.springframework.jdbc.core.JdbcTemplate">
+> 		<property name="dataSource" ref="dataSource"></property>
+> 	</bean>
+> </beans>    
+> ```
+
+3. 在 数据dao的实现类和service的实现类 中加入注解
+
+   ```
+   @Repository("TeacherDao")
+   public class TeacherDaoImpl implements TeacherDao {
+   	@Resource
+   	private JdbcTemplate jdbcTemplate;
+   
+   	@Override
+   	public List<Teacher> selectTeachers() {
+   		// TODO Auto-generated method stub
+   
+   		return jdbcTemplate.query("select tname from teacher_copy1", new RowMapper<Teacher>() {
+   
+   			@Override
+   			public Teacher mapRow(ResultSet rs, int arg1) throws SQLException {
+   				// TODO Auto-generated method stub
+   				Teacher t = new Teacher();
+   				t.setTname(rs.getString(1));
+   				return t;
+   			}
+   
+   		});
+   	}
+   
+   }
+   ```
+
+   ```
+   @Service("ActionDao")
+   public class ActionDaoImpl implements ActionDao {
+   
+   	@Autowired
+   	private TeacherDao teacherDao;
+   
+   	@Override
+   	public void doSomething() {
+   		// TODO Auto-generated method stub
+   		teacherDao.selectTeachers();
+   
+   	}
+   
+   }
+   ```
+
+   
+
+   ***
+
+   **类是来产生对象的，接口是定义标准的**
+
+   **注解和接口没有关系，都是在接口的实现类上添加**
+
+   ***
+
+   ####   有点重点 
+
+   #####   注解说明1---用来生成组件、注入组件的
+
+   @Service  用于标注业务层组件（service层）                 		  	
+
+   @Controller  用于标注控制层组件  												
+
+   @Repository   用于标注数据层访问组件（dao层） 				 	
+
+   @Component  泛指组件（以上都属于@Component），当组件不好分类时，就使用这个注解来标注，例如：test测试文件
+
+   
+
+   ##### 注解说明2--- 用来注入的
+
+   @Resource     注入一个在xml文件中已经存在的bean
+
+   @Autowired   默认根据类型进行注入，属性必须是private私有的才可以注入；value值最好与xml文件或者@Repository中设置的bean名称一致 
+
+    @Autowired 可以默认使用取的value名字，同时也可以通过加上@Qualifier进行指定哪一个bean 
