@@ -227,3 +227,4 @@
    @Autowired   默认根据类型进行注入，属性必须是private私有的才可以注入；value值最好与xml文件或者@Repository中设置的bean名称一致 
 
     @Autowired 可以默认使用取的value名字，同时也可以通过加上@Qualifier进行指定哪一个bean 
+  111
